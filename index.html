@@ -791,7 +791,7 @@ $('editBtn').onclick = () => openForm(current);
 function scoreText(a){
   const head = (a.title || '') + (a.artist ? ' - ' + a.artist : '') + (a.year ? ' (' + a.year + ')' : '');
   const lines = (a.tracks || []).map((t, i) =>
-    (i + 1) + '. ' + t.name + ' - ' + (t.skip ? '-' : typeof t.score === 'number' ? fmtT(t.score) : 'Unrated'));
+    (i + 1) + '. ' + t.name + ' - ' + (t.skip ? 'N/A' : typeof t.score === 'number' ? fmtT(t.score) : 'Unrated'));
   return [head, '', ...lines, '', 'Average: ' + fmt(avg(a))].join('\n');
 }
 async function copyText(text){
