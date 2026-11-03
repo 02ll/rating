@@ -791,8 +791,8 @@ $('editBtn').onclick = () => openForm(current);
 function scoreText(a){
   const head = (a.title || '') + (a.artist ? ' - ' + a.artist : '') + (a.year ? ' (' + a.year + ')' : '');
   const lines = (a.tracks || []).map((t, i) =>
-    (i + 1) + '. ' + t.name + ' - ' + (t.skip ? '-' : typeof t.score === 'number' ? fmtT(t.score) : '미평가'));
-  return [head, '', ...lines, '', '평균 ' + fmt(avg(a))].join('\n');
+    (i + 1) + '. ' + t.name + ' - ' + (t.skip ? '-' : typeof t.score === 'number' ? fmtT(t.score) : 'Unrated'));
+  return [head, '', ...lines, '', 'Average: ' + fmt(avg(a))].join('\n');
 }
 async function copyText(text){
   try { await navigator.clipboard.writeText(text); return true; }
