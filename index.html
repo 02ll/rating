@@ -403,13 +403,21 @@ const enc = encodeURIComponent;
 const providers = [
   { name: 'Apple Music',
     async search(q){
-      for (const c of ['KR', 'US']) {
-        const d = await getJSON('https://itunes.apple.com/search?entity=album&limit=12&country=' + c + '&term=' + enc(q), true);
-        if (d.results && d.results.length) return d.results.map(r => ({
-          title: cleanTitle(r.collectionName), artist: r.artistName, year: (r.releaseDate || '').slice(0, 4),
-          thumb: art(r.artworkUrl100, 120), cover: art(r.artworkUrl100, 600), ref: {id: r.collectionId, c} }));
-      }
-      return [];
+      // 한국·미국 스토어 둘 다 찾아서 합침 (한쪽에만 있는 앨범이 있음)
+      const out = [], seen = new Set();
+      const res = await Promise.allSettled(['KR', 'US'].map(c =>
+        getJSON('https://itunes.apple.com/search?entity=album&limit=10&country=' + c + '&term=' + enc(q), true)
+          .then(d => ({c, d}))));
+      res.forEach(x => {
+        if (x.status !== 'fulfilled') return;
+        (x.value.d.results || []).forEach(r => {
+          if (seen.has(r.collectionId)) return; seen.add(r.collectionId);
+          out.push({ title: cleanTitle(r.collectionName), artist: r.artistName, year: (r.releaseDate || '').slice(0, 4),
+            thumb: art(r.artworkUrl100, 120), cover: art(r.artworkUrl100, 600), ref: {id: r.collectionId, c: x.value.c} });
+        });
+      });
+      if (!out.length && res.every(x => x.status === 'rejected')) throw res[0].reason;
+      return out;
     },
     async tracks(ref){
       const d = await getJSON('https://itunes.apple.com/lookup?entity=song&limit=200&country=' + ref.c + '&id=' + ref.id, true);
@@ -451,10 +459,22 @@ async function searchAlbums(){
   const seq = ++searchSeq;
   const btn = $('sBtn'), msg = $('sMsg'), ul = $('results');
   btn.disabled = true; msg.textContent = '찾는 중'; ul.innerHTML = '';
-  let list = [], prov = null; const errs = [];
-  for (const p of providers) {
-    try { list = await p.search(q); if (list.length) { prov = p; break; } }
-    catch(e) { console.error(p.name, e); errs.push(p.name + ': ' + e.message); }
+  // Apple Music과 Deezer를 같이 찾아서 합치고, 둘 다 없으면 MusicBrainz
+  let list = []; const errs = [];
+  const norm = s => (s || '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  const seen = new Set();
+  const add = (p, items) => items.forEach(it => {
+    const k = norm(it.title) + '|' + norm(it.artist);
+    if (seen.has(k)) return; seen.add(k); it.prov = p; list.push(it);
+  });
+  const first = await Promise.allSettled(providers.slice(0, 2).map(p => p.search(q)));
+  first.forEach((r, i) => {
+    if (r.status === 'fulfilled') add(providers[i], r.value);
+    else { console.error(providers[i].name, r.reason); errs.push(providers[i].name + ': ' + r.reason.message); }
+  });
+  if (!list.length) {
+    try { add(providers[2], await providers[2].search(q)); }
+    catch(e) { console.error(e); errs.push(providers[2].name + ': ' + e.message); }
   }
   if (seq !== searchSeq) return;
   btn.disabled = false;
@@ -464,7 +484,7 @@ async function searchAlbums(){
       : '검색 결과가 없어요. 다른 표기로 찾거나 아래에 직접 입력해요.';
     return;
   }
-  msg.textContent = prov.name + ' 검색 결과';
+  msg.textContent = '';
   list.forEach(item => {
     const li = document.createElement('li'); const b = document.createElement('button');
     const img = document.createElement('img'); img.alt = ''; img.loading = 'lazy'; img.src = item.thumb || '';
@@ -475,7 +495,7 @@ async function searchAlbums(){
     mid.append(rt, ra);
     const ry = document.createElement('span'); ry.className = 'ry num'; ry.textContent = item.year || '';
     b.append(img, mid, ry);
-    b.onclick = () => pickAlbum(item, prov);
+    b.onclick = () => pickAlbum(item, item.prov);
     li.appendChild(b); ul.appendChild(li);
   });
 }
