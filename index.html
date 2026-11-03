@@ -183,6 +183,7 @@
     <label class="lbl" for="memo">메모</label>
     <textarea class="field" id="memo" placeholder="앨범 전체에 대한 감상"></textarea>
     <div class="actions">
+      <button class="link" id="copyBtn">점수 복사</button>
       <button class="link" id="editBtn">정보 수정</button>
       <button class="link warn" id="delBtn">앨범 삭제</button>
     </div>
@@ -787,6 +788,26 @@ $('cancelBtn').onclick = closeForm;
 $('cancelTop').onclick = closeForm;
 $('saveBtn').onclick = saveForm;
 $('editBtn').onclick = () => openForm(current);
+function scoreText(a){
+  const head = (a.title || '') + (a.artist ? ' - ' + a.artist : '') + (a.year ? ' (' + a.year + ')' : '');
+  const lines = (a.tracks || []).map((t, i) =>
+    (i + 1) + '. ' + t.name + ' - ' + (t.skip ? '-' : typeof t.score === 'number' ? fmtT(t.score) : '미평가'));
+  return [head, '', ...lines, '', '평균 ' + fmt(avg(a))].join('\n');
+}
+async function copyText(text){
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch(e) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, text.length);
+    let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+    ta.remove(); return ok;
+  }
+}
+$('copyBtn').onclick = async () => {
+  const a = albums[current]; if (!a) return;
+  flash(await copyText(scoreText(a)) ? '복사됨' : '복사하지 못했어요');
+};
 $('delBtn').onclick = async () => {
   const a = albums[current]; if (!a) return;
   if (!(await confirmBox('“' + (a.title || '') + '” 앨범을 삭제할까요?'))) return;
